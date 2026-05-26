@@ -1,0 +1,391 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+/* =========================================================
+   设计令牌（来自 DESIGN §1）
+   ========================================================= */
+:root {
+  /* 背景 */
+  --bg-deep:     #0a1438;
+  --bg-water:    #1a2858;
+  --bg-glow:     #2d4080;
+
+  /* Sidebar */
+  --sb-blue:     #4a6bff;
+  --sb-blue-dk:  #2d4080;
+  --sb-panel:    #1a2858;
+  --inset:       #050818;
+
+  /* Chips × Mult */
+  --chips-from:  #4dd6ff;
+  --chips-to:    #2196f3;
+  --mult-from:   #ff8844;
+  --mult-to:     #ff3344;
+
+  /* 金 / 钱 / 按钮 */
+  --gold:        #ffc857;
+  --money:       #ffb030;
+  --btn-red:     #ff3838;
+  --btn-orange:  #ff8800;
+  --btn-blue:    #4a6bff;
+  --btn-green:   #62d18b;
+  --btn-discard: #ff5544;
+
+  /* 文字 */
+  --text:        #ffffff;
+  --text-dim:    #c9d2e8;
+  --muted:       #8a9bbf;
+
+  /* Joker 卡纸 */
+  --paper-1:     #fff8e1;
+  --paper-2:     #f7e9c4;
+  --paper-3:     #e9d6a4;
+  --card-edge:   #1a0f24;
+
+  /* 字体变量 */
+  --pixel:       'Press Start 2P', monospace;
+  --display:     'VT323', monospace;
+  --sans:        'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0;
+  width: 100%; height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 40%, rgba(45,64,128,.6), transparent 70%),
+    radial-gradient(ellipse 120% 80% at 30% 70%, rgba(74,107,255,.15), transparent 60%),
+    repeating-linear-gradient(45deg, rgba(255,255,255,.012) 0 2px, transparent 2px 4px),
+    linear-gradient(135deg, #0a1438 0%, #1a2858 50%, #0a1438 100%);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: var(--sans);
+}
+
+#app {
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* =========================================================
+   按钮基础（PRD §4.6 / DESIGN §3.6）
+   中文友好：Inter 16px / 800
+   ========================================================= */
+.px-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 14px 26px;
+  border-radius: 12px;
+  font-family: var(--sans);
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-shadow: 0 1px 2px rgba(0,0,0,.45);
+  border: 2px solid rgba(0,0,0,.35);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.3);
+  transition: all 0.15s ease;
+  cursor: pointer;
+  color: #fff;
+  white-space: nowrap;
+}
+.px-btn:hover:not([disabled]) {
+  transform: translateY(-2px);
+  filter: brightness(1.1) saturate(1.15);
+}
+.px-btn:active:not([disabled]) {
+  transform: translateY(2px);
+  filter: brightness(0.92);
+}
+.px-btn[disabled], .px-btn.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.3);
+  pointer-events: none;
+}
+
+/* 出牌（主，绿）*/
+.px-btn-play {
+  background: linear-gradient(180deg, #34d399 0%, #10b981 50%, #059669 100%);
+  box-shadow: 0 5px 0 #047857, 0 8px 18px rgba(16,185,129,.3), inset 0 1px 0 rgba(255,255,255,.3);
+}
+/* 弃牌 / 重新开始（红）*/
+.px-btn-red {
+  background: linear-gradient(180deg, #fb7185 0%, #ef4444 50%, #dc2626 100%);
+  box-shadow: 0 5px 0 #991b1b, 0 8px 18px rgba(239,68,68,.3), inset 0 1px 0 rgba(255,255,255,.3);
+}
+/* 排序（ghost 紫蓝）*/
+.px-btn-sort {
+  font-size: 14px;
+  min-height: 44px;
+  padding: 10px 18px;
+  background: linear-gradient(180deg, rgba(99,102,241,.28) 0%, rgba(67,56,202,.20) 100%);
+  box-shadow: 0 3px 0 rgba(67,56,202,.4), inset 0 1px 0 rgba(255,255,255,.15);
+  border-color: rgba(99,102,241,.5);
+  color: var(--text-dim);
+}
+/* 商店跳过（蓝紫）*/
+.px-btn-skip {
+  background: linear-gradient(180deg, #818cf8 0%, #6366f1 50%, #4338ca 100%);
+  box-shadow: 0 5px 0 #312e81, 0 8px 18px rgba(99,102,241,.3), inset 0 1px 0 rgba(255,255,255,.3);
+}
+/* 购买按钮（绿，商店同出牌）*/
+.px-btn-buy {
+  font-size: 14px;
+  min-height: 44px;
+  padding: 10px 18px;
+  background: linear-gradient(180deg, #34d399 0%, #10b981 50%, #059669 100%);
+  box-shadow: 0 4px 0 #047857, inset 0 1px 0 rgba(255,255,255,.3);
+}
+
+/* =========================================================
+   Joker 卡（PRD §4.1：宽≥140px 高≥200px）
+   ========================================================= */
+.joker-card {
+  width: 140px;
+  height: 200px;
+  background: linear-gradient(180deg, var(--paper-1), var(--paper-2));
+  border: 2px solid var(--card-edge);
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0,0,0,.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  flex-shrink: 0;
+}
+
+/* 稀有度四角内描边（PRD §2.2）*/
+.joker-card.rarity-common  { outline: 3px solid #6cb4d3; outline-offset: -4px; }
+.joker-card.rarity-rare    { outline: 3px solid #e34b6f; outline-offset: -4px; }
+.joker-card.rarity-legendary { outline: 3px solid #b577ff; outline-offset: -4px; }
+
+.joker-card-empty {
+  width: 140px;
+  height: 200px;
+  border: 2px dashed rgba(74,107,255,.3);
+  border-radius: 10px;
+  background: rgba(74,107,255,.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* Joker 触发高亮 */
+.joker-card.triggered {
+  transform: translateY(-12px) scale(1.05);
+  box-shadow: 0 0 20px rgba(255,200,87,.8), 0 8px 16px rgba(0,0,0,.5);
+}
+
+/* =========================================================
+   扑克牌（PRD §4.3：100×145）
+   ========================================================= */
+.play-card {
+  width: 100px;
+  height: 145px;
+  background: linear-gradient(180deg, var(--paper-1), var(--paper-2));
+  border: 2px solid var(--card-edge);
+  border-radius: 8px;
+  box-shadow: 0 3px 6px rgba(0,0,0,.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  position: relative;
+  flex-shrink: 0;
+}
+.play-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 12px rgba(0,0,0,.5);
+}
+.play-card.selected {
+  transform: translateY(-28px);
+  box-shadow: 0 8px 20px rgba(74,107,255,.6);
+}
+
+/* 牌面内容 */
+.card-rank {
+  font-family: var(--sans);
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
+}
+.card-suit {
+  font-size: 28px;
+  line-height: 1;
+}
+.card-rank.red, .card-suit.red { color: #dc2626; }
+.card-rank.black, .card-suit.black { color: #1a0f24; }
+
+/* 出牌区的牌（已打出，不可点击）*/
+.play-card.played {
+  cursor: default;
+  pointer-events: none;
+}
+.play-card.play-highlight {
+  box-shadow: 0 0 16px rgba(77,214,255,.8), 0 4px 8px rgba(0,0,0,.4);
+  transform: translateY(-10px);
+}
+
+/* =========================================================
+   飞字动画
+   ========================================================= */
+.float-text {
+  position: fixed;
+  pointer-events: none;
+  z-index: 200;
+  font-family: var(--pixel);
+  font-weight: 900;
+  font-size: 18px;
+  text-shadow: 0 2px 4px rgba(0,0,0,.8);
+  animation: floatUp 0.8s ease-out forwards;
+}
+.float-text.chips { color: var(--chips-from); }
+.float-text.mult  { color: var(--mult-from); }
+.float-text.score { color: var(--gold); font-size: 24px; }
+
+@keyframes floatUp {
+  0%   { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-60px); }
+}
+
+/* =========================================================
+   Final Formula（大分数爆出，DESIGN §4 步骤5）
+   ========================================================= */
+.final-formula {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 300;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  pointer-events: none;
+  animation: formulaIn 0.3s ease-out, formulaOut 0.5s ease-in 1.2s forwards;
+}
+.ff-chips { font-family: var(--pixel); font-size: 56px; color: var(--chips-from); text-shadow: 0 0 20px var(--chips-from); }
+.ff-x     { font-family: var(--pixel); font-size: 40px; color: var(--text-dim); }
+.ff-mult  { font-family: var(--pixel); font-size: 56px; color: var(--mult-from); text-shadow: 0 0 20px var(--mult-from); }
+.ff-eq    { font-family: var(--pixel); font-size: 40px; color: var(--text-dim); }
+.ff-score { font-family: var(--pixel); font-size: 76px; color: var(--gold); text-shadow: 0 0 30px var(--gold); }
+
+@keyframes formulaIn {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes formulaOut {
+  0%   { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* =========================================================
+   发牌动画（从牌堆飞入）
+   ========================================================= */
+.card-flying {
+  position: fixed;
+  z-index: 150;
+  pointer-events: none;
+  width: 100px;
+  height: 145px;
+  background: linear-gradient(180deg, var(--paper-1), var(--paper-2));
+  border: 2px solid var(--card-edge);
+  border-radius: 8px;
+  box-shadow: 0 3px 6px rgba(0,0,0,.5);
+}
+
+/* =========================================================
+   Progress bar
+   ========================================================= */
+.progress-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(0,0,0,.4);
+  border: 1px solid rgba(74,107,255,.3);
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--chips-from), var(--chips-to));
+  transition: width 0.5s ease;
+}
+
+/* =========================================================
+   侧边栏面板共用
+   ========================================================= */
+.sb-panel {
+  border-radius: 10px;
+  border: 2px solid rgba(74,107,255,.5);
+  background: linear-gradient(180deg, #1e3068, #152050);
+  padding: 10px 12px;
+}
+
+/* =========================================================
+   牌堆（fixed 右下角）
+   ========================================================= */
+.deck-pile {
+  position: fixed;
+  bottom: 24px;
+  right: 20px;
+  z-index: 50;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.deck-layer {
+  width: 90px;
+  height: 130px;
+  border-radius: 8px;
+  position: absolute;
+  border: 2px solid rgba(100,50,200,.6);
+}
+.deck-layer-1 { background: linear-gradient(135deg, #4a2090, #1a0a40); top: 4px; left: 4px; }
+.deck-layer-2 { background: linear-gradient(135deg, #5a2aa0, #2a1060); top: 2px; left: 2px; }
+.deck-layer-3 { background: linear-gradient(135deg, #6a3ab0, #3a1870); top: 0; left: 0; }
+.deck-count {
+  margin-top: 136px;
+  font-family: var(--display);
+  font-size: 14px;
+  color: var(--gold);
+  text-align: center;
+}
+
+/* =========================================================
+   商店 / 结束界面覆盖
+   ========================================================= */
+.overlay-screen {
+  position: absolute;
+  inset: 0;
+  background: rgba(5,8,24,.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+/* 数字跳动动画 */
+@keyframes numJump {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+.num-jump {
+  animation: numJump 0.3s ease;
+}
