@@ -1,306 +1,258 @@
-/**
- * 游戏核心状态机
- * PRD M4 状态机：playing → shop → won / lost
- */
-import { ref, computed } from 'vue'
-import { createDeck } from './deck.js'
-import { identifyHand, cardValue } from './poker.js'
-import { JOKER_POOL } from '../config/jokers.js'
+import { reactive, computed } from 'vue'
+import { createDeck, shuffle } from './deck.js'
+import { identifyHand, calcScore } from './poker.js'
 import { BLINDS, calcReward } from '../config/blinds.js'
+import { JOKER_POOL } from '../config/jokers.js'
+
+const HAND_SIZE = 8
+const MAX_HANDS = 4
+const MAX_DISCARDS = 3
+const MAX_JOKER_SLOTS = 5
+const MAX_SELECT = 5
+
+function freshDeck() {
+  return shuffle(createDeck())
+}
+
+// 从 JOKER_POOL 随机抽 3 张不重复（商店每次进入重新抽）
+function drawShopJokers(owned) {
+  const ownedIds = new Set(owned.map(j => j.id))
+  const pool = JOKER_POOL.filter(j => !ownedIds.has(j.id))
+  const picked = shuffle([...pool]).slice(0, 3)
+  return picked.map(j => ({ ...j, sold: false }))
+}
 
 export function useGame() {
-  // ─── 状态机 ───
-  const gameState = ref('playing') // playing | shop | won | lost
+  const state = reactive({
+    // 状态机: 'playing' | 'shop' | 'won' | 'lost'
+    phase: 'playing',
 
-  // ─── 资源 ───
-  const gold = ref(0)
-  const ownedJokers = ref([])  // 持有的 Joker 对象
-  const currentBlindIdx = ref(0)
+    // 盲注进度
+    blindIndex: 0,    // 0=小盲注 1=中盲注 2=大盲注
 
-  // ─── 本关状态 ───
-  const deck = ref([])
-  const hand = ref([])        // 8张手牌
-  const selectedIds = ref([]) // 选中牌的 id 集合
-  const playedCards = ref([]) // 出牌区（动画用）
-  const handsLeft = ref(4)
-  const discardsLeft = ref(3)
-  const blindScore = ref(0)   // 本关累计分
+    // 当前关数据
+    roundScore: 0,
+    handsLeft: MAX_HANDS,
+    discardsLeft: MAX_DISCARDS,
 
-  // ─── 动画状态 ───
-  const isAnimating = ref(false)
-  const battleChips = ref(0)
-  const battleMult = ref(0)
-  const currentHandType = ref(null)  // {name, chips, mult}
-  const triggeredJokerIds = ref([])
-  const showFinalFormula = ref(false)
-  const finalChips = ref(0)
-  const finalMult = ref(0)
-  const finalScore = ref(0)
-  const floatTexts = ref([])   // [{id, text, x, y, type}]
-  const highlightedCardIds = ref([])
+    // 牌组
+    deck: freshDeck(),
+    hand: [],
+    playedCards: [],
+    selectedIds: new Set(),
 
-  // ─── 商店状态 ───
-  const shopItems = ref([])    // 随机抽取的 3 张 Joker
-  const soldIds = ref([])      // 已购 Joker id
+    // Joker
+    ownedJokers: [],
+    triggeredJokerIds: new Set(),
 
-  // ─── 派生计算 ───
-  const currentBlind = computed(() => BLINDS[currentBlindIdx.value])
-  const selectedCards = computed(() =>
-    hand.value.filter(c => selectedIds.value.includes(c.id))
-  )
-  const previewHand = computed(() => {
-    if (selectedIds.value.length === 0) return null
-    return identifyHand(selectedCards.value)
+    // 商店
+    shopJokers: [],
+    coins: 0,
+
+    // 当前识别的牌型（用于出牌区顶部浮字）
+    currentHandType: null,
+
+    // Joker 触发动画 id 集合
+    animatingJokerIds: new Set(),
   })
-  const jokerCount = computed(() => ownedJokers.value.length)
 
-  // 浮字工具暂未接入，删除占位声明（v5 第 1 轮未实现飞字动画，第 3 轮再加）
+  // ——— computed ———
 
-  // ─── 初始化 / 重新开始 ───
-  function initGame() {
-    gameState.value = 'playing'
-    gold.value = 0
-    ownedJokers.value = []
-    currentBlindIdx.value = 0
-    soldIds.value = []
-    startBlind()
-  }
+  const currentBlind = computed(() => BLINDS[state.blindIndex])
 
-  function startBlind() {
-    deck.value = createDeck()
-    hand.value = []
-    selectedIds.value = []
-    playedCards.value = []
-    handsLeft.value = 4
-    discardsLeft.value = 3
-    blindScore.value = 0
-    battleChips.value = 0
-    battleMult.value = 0
-    currentHandType.value = null
-    triggeredJokerIds.value = []
-    showFinalFormula.value = false
-    isAnimating.value = false
-    highlightedCardIds.value = []
-    // 发 8 张牌（动画由组件处理）
-    dealCards(8)
-  }
+  const selectedCards = computed(() =>
+    state.hand.filter(c => state.selectedIds.has(c.id))
+  )
 
-  function dealCards(count) {
-    const newCards = []
-    for (let i = 0; i < count && deck.value.length > 0; i++) {
-      newCards.push(deck.value.shift())
+  const selectedCount = computed(() => state.selectedIds.size)
+
+  // HAND 计分块（PRD §4.2）：
+  // - 未选牌时：name=null chips=0 mult=0
+  // - 选牌预览时：name=牌型名 chips=0 mult=0（不预估）
+  // - 出牌后：name=牌型名 chips/mult=最终值
+  const handDisplay = computed(() => {
+    if (!state.currentHandType) {
+      return { name: null, chips: 0, mult: 0 }
     }
-    hand.value.push(...newCards)
-    return newCards
+    if (state.playedCards.length === 0) {
+      // 选牌预览阶段：只显示牌型名，chips/mult 保持 0
+      return { name: state.currentHandType.name, chips: 0, mult: 0 }
+    }
+    return {
+      name: state.currentHandType.name,
+      chips: state.currentHandType.chips,
+      mult: state.currentHandType.mult,
+    }
+  })
+
+  // 出牌按钮文案 / 禁用 —— 出牌 (X) X=选中数
+  const canPlay = computed(() => selectedCount.value > 0 && state.phase === 'playing')
+
+  // 弃牌按钮文案 / 禁用 —— 弃牌 (X) X=剩余弃牌数（PRD §6）
+  const canDiscard = computed(() =>
+    selectedCount.value > 0 && state.discardsLeft > 0 && state.phase === 'playing'
+  )
+
+  // ——— 操作 ———
+
+  function initRound() {
+    state.roundScore = 0
+    state.handsLeft = MAX_HANDS
+    state.discardsLeft = MAX_DISCARDS
+    state.deck = freshDeck()
+    state.hand = []
+    state.playedCards = []
+    state.selectedIds = new Set()
+    state.currentHandType = null
+    state.triggeredJokerIds = new Set()
+    // 发 8 张手牌（v1：直接 push，不做飞牌动画）
+    dealToHand()
   }
 
-  // ─── 选牌 ───
+  function dealToHand() {
+    while (state.hand.length < HAND_SIZE && state.deck.length > 0) {
+      state.hand.push(state.deck.pop())
+    }
+  }
+
   function toggleSelect(cardId) {
-    if (isAnimating.value) return
-    if (selectedIds.value.includes(cardId)) {
-      selectedIds.value = selectedIds.value.filter(id => id !== cardId)
+    if (state.phase !== 'playing') return
+    if (state.selectedIds.has(cardId)) {
+      state.selectedIds.delete(cardId)
     } else {
-      if (selectedIds.value.length >= 5) return // 最多 5 张
-      selectedIds.value = [...selectedIds.value, cardId]
+      if (state.selectedIds.size >= MAX_SELECT) return
+      state.selectedIds.add(cardId)
+    }
+    // 更新当前牌型预览
+    const sel = state.hand.filter(c => state.selectedIds.has(c.id))
+    state.currentHandType = sel.length > 0 ? identifyHand(sel) : null
+    // 重建 Set 触发响应式
+    state.selectedIds = new Set(state.selectedIds)
+  }
+
+  function playCards() {
+    if (!canPlay.value) return
+    const cards = state.hand.filter(c => state.selectedIds.has(c.id))
+
+    // 把选中牌移到出牌区（v1：直接换）
+    state.playedCards = cards
+    state.hand = state.hand.filter(c => !state.selectedIds.has(c.id))
+    state.selectedIds = new Set()
+
+    // 计分
+    const { score, chips, mult, handType } = calcScore(cards, state.ownedJokers)
+    state.currentHandType = { ...handType, chips, mult }
+    state.roundScore += score
+    state.handsLeft--
+
+    // Joker 触发高亮（v1：标记触发过的 Joker）
+    highlightTriggeredJokers(cards, handType?.name)
+
+    // 补牌（v1：直接 push）
+    dealToHand()
+
+    // 判定通关 / 失败
+    if (state.roundScore >= currentBlind.value.target) {
+      const reward = calcReward(state.handsLeft)
+      state.coins += reward
+      enterShop()
+    } else if (state.handsLeft === 0) {
+      state.phase = 'lost'
     }
   }
 
-  // ─── 排序 ───
+  function discardCards() {
+    if (!canDiscard.value) return
+    state.hand = state.hand.filter(c => !state.selectedIds.has(c.id))
+    state.selectedIds = new Set()
+    state.discardsLeft--
+    state.currentHandType = null
+    dealToHand()
+  }
+
   function sortByRank() {
-    const ORDER = ['2','3','4','5','6','7','8','9','10','J','Q','K','A']
-    hand.value = [...hand.value].sort((a, b) => ORDER.indexOf(a.rank) - ORDER.indexOf(b.rank))
+    const rankOrder = ['2','3','4','5','6','7','8','9','10','J','Q','K','A']
+    state.hand = [...state.hand].sort((a, b) => rankOrder.indexOf(a.rank) - rankOrder.indexOf(b.rank))
   }
 
   function sortBySuit() {
-    const SUIT_ORDER = ['♠','♥','♦','♣']
-    hand.value = [...hand.value].sort((a, b) => SUIT_ORDER.indexOf(a.suit) - SUIT_ORDER.indexOf(b.suit))
-  }
-
-  // ─── 弃牌 ───
-  function discardCards() {
-    if (isAnimating.value) return
-    if (selectedIds.value.length === 0) return
-    if (discardsLeft.value <= 0) return
-
-    const discardedIds = [...selectedIds.value]
-    hand.value = hand.value.filter(c => !discardedIds.includes(c.id))
-    selectedIds.value = []
-    discardsLeft.value--
-    // 补牌
-    dealCards(discardedIds.length)
-  }
-
-  // ─── 出牌（核心动画流程）───
-  async function playCards(_deckRef) {
-    if (isAnimating.value) return
-    if (selectedIds.value.length === 0) return
-    if (handsLeft.value <= 0) return
-
-    isAnimating.value = true
-
-    const played = selectedCards.value
-    const handType = identifyHand(played)
-
-    // 把打出的牌移到 playedCards，从 hand 移除
-    playedCards.value = played.map(c => ({ ...c }))
-    hand.value = hand.value.filter(c => !selectedIds.value.includes(c.id))
-    selectedIds.value = []
-
-    // 步骤 1: 等待"飞牌"动画（由组件的 CSS transition 处理）350ms
-    await sleep(400)
-
-    // 步骤 2: 显示牌型名 + 设置初始 chips/mult（350-550ms）
-    currentHandType.value = handType
-    battleChips.value = handType.chips
-    battleMult.value = handType.mult
-    await sleep(200)
-
-    // 步骤 3: 逐张高亮 + chips 累加（每张 150ms）
-    for (const card of played) {
-      highlightedCardIds.value = [...highlightedCardIds.value, card.id]
-      const val = cardValue(card.rank)
-      battleChips.value += val
-      // 飞字（由调用方的 ref 获取位置）
-      await sleep(150)
-    }
-
-    await sleep(100)
-
-    // 步骤 4: 按 ownedJokers 顺序触发
-    let chips = battleChips.value
-    let mult = battleMult.value
-
-    for (const joker of ownedJokers.value) {
-      const prev = { chips, mult }
-      const result = joker.effect(played, chips, mult, handType.name)
-      chips = result.chips
-      mult = result.mult
-
-      if (chips !== prev.chips || mult !== prev.mult) {
-        triggeredJokerIds.value = [joker.id]
-        battleChips.value = chips
-        battleMult.value = mult
-        await sleep(300)
-        triggeredJokerIds.value = []
-      }
-    }
-
-    battleChips.value = chips
-    battleMult.value = mult
-
-    // 步骤 5: 最终公式爆出（+180ms）
-    await sleep(180)
-    finalChips.value = chips
-    finalMult.value = mult
-    finalScore.value = chips * mult
-    showFinalFormula.value = true
-
-    // 步骤 6: blindScore 累加（+560ms，公式展示 1.5s 后关闭）
-    await sleep(560)
-    blindScore.value += finalScore.value
-    showFinalFormula.value = false
-    await sleep(200)
-
-    // 步骤 7: 清空出牌区 + 补牌
-    highlightedCardIds.value = []
-    playedCards.value = []
-    handsLeft.value--
-    currentHandType.value = null
-
-    // 补牌
-    const needed = 8 - hand.value.length
-    if (needed > 0) {
-      dealCards(needed)
-    }
-
-    await sleep(100)
-    isAnimating.value = false
-
-    // 步骤 8: 判定
-    if (blindScore.value >= currentBlind.value.target) {
-      await sleep(300)
-      enterShop()
-    } else if (handsLeft.value <= 0) {
-      gameState.value = 'lost'
-    }
+    const suitOrder = ['♠', '♥', '♦', '♣']
+    state.hand = [...state.hand].sort((a, b) => suitOrder.indexOf(a.suit) - suitOrder.indexOf(b.suit))
   }
 
   function enterShop() {
-    const reward = calcReward(handsLeft.value)
-    gold.value += reward
-    // 随机抽 3 张不重复的 Joker
-    const pool = [...JOKER_POOL]
-    const picks = []
-    for (let i = 0; i < 3 && pool.length > 0; i++) {
-      const idx = Math.floor(Math.random() * pool.length)
-      picks.push(pool.splice(idx, 1)[0])
-    }
-    shopItems.value = picks
-    soldIds.value = []
-    gameState.value = 'shop'
+    state.playedCards = []
+    state.currentHandType = null
+    state.shopJokers = drawShopJokers(state.ownedJokers)
+    state.phase = 'shop'
   }
 
   function buyJoker(joker) {
-    if (gold.value < joker.price) return
-    if (ownedJokers.value.length >= 5) return
-    if (soldIds.value.includes(joker.id)) return
-    gold.value -= joker.price
-    ownedJokers.value = [...ownedJokers.value, joker]
-    soldIds.value = [...soldIds.value, joker.id]
+    if (joker.sold) return
+    if (state.coins < joker.price) return
+    if (state.ownedJokers.length >= MAX_JOKER_SLOTS) return
+    state.coins -= joker.price
+    state.ownedJokers.push(joker)
+    joker.sold = true
   }
 
-  function skipShop() {
-    if (currentBlindIdx.value >= 2) {
-      gameState.value = 'won'
+  function leaveShop() {
+    state.blindIndex++
+    if (state.blindIndex >= BLINDS.length) {
+      state.phase = 'won'
     } else {
-      currentBlindIdx.value++
-      startBlind()
+      initRound()
+      state.phase = 'playing'
     }
   }
 
-  function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms))
+  function restart() {
+    state.blindIndex = 0
+    state.coins = 0
+    state.ownedJokers = []
+    state.phase = 'playing'
+    initRound()
   }
 
+  // 标记哪些 Joker 被触发（用于高亮动画）
+  function highlightTriggeredJokers(cards, handTypeName) {
+    const triggered = new Set()
+    for (const joker of state.ownedJokers) {
+      // 简单判断：effect 前后 mult/chips 有变化则视为触发
+      const before = { chips: 0, mult: 1 }
+      const after = joker.effect(before, cards, handTypeName)
+      if (after.chips !== before.chips || after.mult !== before.mult) {
+        triggered.add(joker.id)
+      }
+    }
+    state.triggeredJokerIds = triggered
+
+    // 800ms 后清除高亮
+    setTimeout(() => {
+      state.triggeredJokerIds = new Set()
+    }, 800)
+  }
+
+  // 初始化第一局
+  initRound()
+
   return {
-    // 状态
-    gameState,
-    gold,
-    ownedJokers,
-    currentBlindIdx,
+    state,
     currentBlind,
-    deck,
-    hand,
-    selectedIds,
     selectedCards,
-    playedCards,
-    handsLeft,
-    discardsLeft,
-    blindScore,
-    isAnimating,
-    battleChips,
-    battleMult,
-    currentHandType,
-    triggeredJokerIds,
-    showFinalFormula,
-    finalChips,
-    finalMult,
-    finalScore,
-    floatTexts,
-    highlightedCardIds,
-    shopItems,
-    soldIds,
-    jokerCount,
-    previewHand,
-    // 动作
-    initGame,
+    selectedCount,
+    handDisplay,
+    canPlay,
+    canDiscard,
+    BLINDS,
+    MAX_JOKER_SLOTS,
     toggleSelect,
     playCards,
     discardCards,
     sortByRank,
     sortBySuit,
     buyJoker,
-    skipShop,
-    dealCards,
+    leaveShop,
+    restart,
   }
 }

@@ -1,95 +1,128 @@
 <template>
+  <!-- 扑克牌：100×145px（PRD §4.3 硬锁定） -->
   <div
-    :class="['play-card', { selected: isSelected, played: isPlayed, 'play-highlight': isHighlighted }]"
-    @click="!isPlayed && $emit('toggle', card.id)"
+    class="play-card"
+    :class="[suitClass, { selected: isSelected, played: isPlayed }]"
+    @click="$emit('click')"
   >
-    <!-- 左上角点数/花色 -->
-    <div class="card-corner card-corner-tl">
-      <div :class="['card-rank', card.color]">{{ card.rank }}</div>
-      <div :class="['card-suit', card.color]">{{ card.suit }}</div>
+    <!-- 左上角点数 + 花色 -->
+    <div class="corner top-left">
+      <div class="rank">{{ card.rank }}</div>
+      <div class="suit">{{ card.suit }}</div>
     </div>
-    <!-- 中间大花色 -->
-    <div :class="['card-suit-center', card.color]">{{ card.suit }}</div>
-    <!-- 右下角点数/花色（倒置）-->
-    <div class="card-corner card-corner-br">
-      <div :class="['card-rank', card.color]">{{ card.rank }}</div>
-      <div :class="['card-suit', card.color]">{{ card.suit }}</div>
+
+    <!-- 中央大花色 -->
+    <div class="center-suit">{{ card.suit }}</div>
+
+    <!-- 右下角（倒置） -->
+    <div class="corner bottom-right">
+      <div class="rank">{{ card.rank }}</div>
+      <div class="suit">{{ card.suit }}</div>
     </div>
   </div>
 </template>
 
 <script setup>
-defineProps({
-  card: Object,
+import { computed } from 'vue'
+
+const props = defineProps({
+  card: { type: Object, required: true },
   isSelected: { type: Boolean, default: false },
   isPlayed: { type: Boolean, default: false },
-  isHighlighted: { type: Boolean, default: false },
 })
-defineEmits(['toggle'])
+
+defineEmits(['click'])
+
+const suitClass = computed(() => {
+  return props.card.suit === '♥' || props.card.suit === '♦' ? 'red-suit' : 'black-suit'
+})
 </script>
 
 <style scoped>
 .play-card {
   width: 100px;
   height: 145px;
-  background: linear-gradient(180deg, #fff8e1, #f7e9c4);
-  border: 2px solid #1a0f24;
+  background: linear-gradient(145deg, #fffef8 0%, #fff9e8 100%);
   border-radius: 8px;
-  box-shadow: 0 3px 6px rgba(0,0,0,.5);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  user-select: none;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  border: 1.5px solid rgba(0,0,0,0.18);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35), 0 1px 2px rgba(0,0,0,0.2);
   position: relative;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
   flex-shrink: 0;
-}
-.play-card:hover:not(.played) {
-  transform: translateY(-4px);
-  box-shadow: 0 6px 12px rgba(0,0,0,.5);
-}
-.play-card.selected {
-  transform: translateY(-28px);
-  box-shadow: 0 8px 20px rgba(74,107,255,.6);
-}
-.play-card.played {
-  cursor: default;
-  pointer-events: none;
-}
-.play-card.play-highlight {
-  box-shadow: 0 0 16px rgba(77,214,255,.8), 0 4px 8px rgba(0,0,0,.4);
-  transform: translateY(-10px);
+  user-select: none;
 }
 
-/* 角落 */
-.card-corner {
+.play-card:hover {
+  box-shadow: 0 4px 12px rgba(99,102,241,0.3), 0 2px 4px rgba(0,0,0,0.25);
+}
+
+/* 选中态：上移 22px + 蓝色发光（PRD §4.3 手牌段 padding-top ≥ 36px 为此留出余量）*/
+.play-card.selected {
+  transform: translateY(-22px);
+  box-shadow: 0 0 16px rgba(99,160,241,0.7), 0 4px 12px rgba(99,102,241,0.4);
+  border-color: rgba(99,160,241,0.8);
+}
+
+/* 出牌区的牌不响应点击 */
+.play-card.played {
+  cursor: default;
+  transform: none;
+}
+
+.corner {
   position: absolute;
   display: flex;
   flex-direction: column;
   align-items: center;
   line-height: 1;
+  gap: 1px;
 }
-.card-corner-tl { top: 5px; left: 7px; }
-.card-corner-br { bottom: 5px; right: 7px; transform: rotate(180deg); }
 
-.card-rank {
+.top-left {
+  top: 6px;
+  left: 7px;
+}
+
+.bottom-right {
+  bottom: 6px;
+  right: 7px;
+  transform: rotate(180deg);
+}
+
+.rank {
   font-family: 'Inter', 'PingFang SC', sans-serif;
-  font-size: 16px;
-  font-weight: 900;
-  line-height: 1;
-}
-.card-suit {
-  font-size: 12px;
-  line-height: 1;
-}
-/* 中央大花色 */
-.card-suit-center {
-  font-size: 32px;
+  font-size: 13px;
+  font-weight: 700;
   line-height: 1;
 }
 
-.red   { color: #dc2626; }
-.black { color: #1a0f24; }
+.suit {
+  font-size: 11px;
+  line-height: 1;
+}
+
+.center-suit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 28px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* 红色花色 */
+.red-suit .rank,
+.red-suit .suit,
+.red-suit .center-suit {
+  color: #c0392b;
+}
+
+/* 黑色花色 */
+.black-suit .rank,
+.black-suit .suit,
+.black-suit .center-suit {
+  color: #1a1a2e;
+}
 </style>
