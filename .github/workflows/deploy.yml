@@ -1,3 +1,4 @@
+# trigger-bump: 2026-05-26-v2
 name: Deploy to GitHub Pages
 on:
   push:
