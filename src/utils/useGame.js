@@ -54,16 +54,7 @@ export function useGame() {
   })
   const jokerCount = computed(() => ownedJokers.value.length)
 
-  // ─── 浮字工具（暴露给浮字层使用，预留接口）───
-  let floatId = 0
-  // eslint-disable-next-line no-unused-vars
-  function addFloat(text, x, y, type) {
-    const id = floatId++
-    floatTexts.value.push({ id, text, x, y, type })
-    setTimeout(() => {
-      floatTexts.value = floatTexts.value.filter(f => f.id !== id)
-    }, 900)
-  }
+  // 浮字工具暂未接入，删除占位声明（v5 第 1 轮未实现飞字动画，第 3 轮再加）
 
   // ─── 初始化 / 重新开始 ───
   function initGame() {
