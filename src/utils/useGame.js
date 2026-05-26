@@ -2,9 +2,9 @@
  * 游戏核心状态机
  * PRD M4 状态机：playing → shop → won / lost
  */
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed } from 'vue'
 import { createDeck } from './deck.js'
-import { identifyHand, calcBaseScore, cardValue } from './poker.js'
+import { identifyHand, cardValue } from './poker.js'
 import { JOKER_POOL } from '../config/jokers.js'
 import { BLINDS, calcReward } from '../config/blinds.js'
 
@@ -54,8 +54,9 @@ export function useGame() {
   })
   const jokerCount = computed(() => ownedJokers.value.length)
 
-  // ─── 工具函数 ───
+  // ─── 浮字工具（暴露给浮字层使用，预留接口）───
   let floatId = 0
+  // eslint-disable-next-line no-unused-vars
   function addFloat(text, x, y, type) {
     const id = floatId++
     floatTexts.value.push({ id, text, x, y, type })
@@ -139,7 +140,7 @@ export function useGame() {
   }
 
   // ─── 出牌（核心动画流程）───
-  async function playCards(deckRef) {
+  async function playCards(_deckRef) {
     if (isAnimating.value) return
     if (selectedIds.value.length === 0) return
     if (handsLeft.value <= 0) return
@@ -159,7 +160,6 @@ export function useGame() {
 
     // 步骤 2: 显示牌型名 + 设置初始 chips/mult（350-550ms）
     currentHandType.value = handType
-    const base = calcBaseScore(played, handType)
     battleChips.value = handType.chips
     battleMult.value = handType.mult
     await sleep(200)

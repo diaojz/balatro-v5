@@ -10,7 +10,7 @@ export const JOKER_POOL = [
     price: 3,
     art: '🃏',
     desc: '每手 +4 倍率（无条件加成）',
-    effect(cards, chips, mult) {
+    effect(_cards, chips, mult) {
       return { chips, mult: mult + 4 }
     }
   },
@@ -69,7 +69,7 @@ export const JOKER_POOL = [
     price: 8,
     art: '🔥',
     desc: '打出同花顺时 +50 倍率',
-    effect(cards, chips, mult, handTypeName) {
+    effect(_cards, chips, mult, handTypeName) {
       return { chips, mult: handTypeName === '同花顺' ? mult + 50 : mult }
     }
   }
