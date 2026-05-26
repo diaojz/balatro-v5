@@ -91,10 +91,6 @@ export function calcScore(playedCards, jokers) {
 
 // ——— 内部辅助函数 ———
 
-function rankOrder(rank) {
-  return ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'].indexOf(rank)
-}
-
 function isFlush(cards) {
   if (cards.length < 5) return false
   return cards.every(c => c.suit === cards[0].suit)
